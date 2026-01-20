@@ -14,5 +14,6 @@ public class CourseContentDTO {
     private Integer orderIndex;
     private Boolean isPreview;
     private LocalDateTime createdAt;
-    private Long courseId;
+    private Long chapterId;
+    private String chapterTitle;
 }

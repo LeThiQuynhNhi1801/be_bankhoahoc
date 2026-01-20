@@ -3,6 +3,7 @@ package com.bankhoahoc.security;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod; // Nhớ import cái này
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -52,16 +53,24 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
+        http
+                // 1. Cấu hình CORS
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+                // 2. Tắt CSRF
                 .csrf(csrf -> csrf.disable())
+
+                // 3. Stateless Session
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // 4. Phân quyền (CHO PHÉP TẤT CẢ ĐỂ DEBUG)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/courses/public/**").permitAll()
-                        .requestMatchers("/categories/**").permitAll()
-                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/api-docs/**").permitAll()
-                        .requestMatchers("/admin/**").hasRole("ADMIN")
-                        .anyRequest().authenticated()
+                        // Cho phép method OPTIONS (Preflight request) đi qua mọi nơi
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // Cho phép tất cả các đường dẫn khác (Kể cả Admin, User, Public...)
+                        // Sau khi test xong kết nối thì sửa lại chỗ này sau
+                        .anyRequest().permitAll()
                 );
 
         http.authenticationProvider(authenticationProvider());
@@ -73,10 +82,20 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:3001"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
+
+        // [CỰC KỲ QUAN TRỌNG] Dùng setAllowedOriginPatterns("*") để chấp nhận TẤT CẢ các domain
+        // (Bao gồm localhost:5173, localhost:3000, IP LAN, v.v...)
+        configuration.setAllowedOriginPatterns(List.of("*"));
+
+        // Cho phép tất cả các method (GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH...)
+        configuration.setAllowedMethods(List.of("*"));
+
+        // Cho phép tất cả các Header
+        configuration.setAllowedHeaders(List.of("*"));
+
+        // Cho phép gửi Cookie/Credential
         configuration.setAllowCredentials(true);
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

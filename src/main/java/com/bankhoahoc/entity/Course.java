@@ -71,7 +71,7 @@ public class Course {
     private User instructor;
 
     @OneToMany(mappedBy = "course", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<CourseContent> contents = new HashSet<>();
+    private Set<Chapter> chapters = new HashSet<>();
 
     @OneToMany(mappedBy = "course", cascade = CascadeType.ALL)
     private Set<Enrollment> enrollments = new HashSet<>();

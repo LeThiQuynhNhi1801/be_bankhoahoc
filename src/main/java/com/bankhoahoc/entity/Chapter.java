@@ -6,13 +6,15 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
-@Table(name = "course_contents")
+@Table(name = "chapters")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class CourseContent {
+public class Chapter {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -23,17 +25,11 @@ public class CourseContent {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "video_url")
-    private String videoUrl;
-
-    @Column(name = "duration")
-    private Integer duration; // in minutes
-
     @Column(name = "order_index")
     private Integer orderIndex;
 
-    @Column(name = "is_preview")
-    private Boolean isPreview = false;
+    @Column(name = "is_published")
+    private Boolean isPublished = true;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -42,8 +38,11 @@ public class CourseContent {
     private LocalDateTime updatedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "chapter_id", nullable = false)
-    private Chapter chapter;
+    @JoinColumn(name = "course_id", nullable = false)
+    private Course course;
+
+    @OneToMany(mappedBy = "chapter", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<CourseContent> contents = new HashSet<>();
 
     @PrePersist
     protected void onCreate() {

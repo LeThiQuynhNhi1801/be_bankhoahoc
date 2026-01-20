@@ -15,10 +15,10 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     List<Course> findByCategoryId(Long categoryId);
     List<Course> findByInstructorId(Long instructorId);
     
-    @Query("SELECT c FROM Course c WHERE c.isPublished = true AND " +
+    @Query("SELECT c FROM Course c WHERE " +
            "(LOWER(c.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "LOWER(c.description) LIKE LOWER(CONCAT('%', :keyword, '%')))")
-    List<Course> searchPublishedCourses(@Param("keyword") String keyword);
+    List<Course> searchCourses(@Param("keyword") String keyword);
     
     Optional<Course> findByIdAndIsPublishedTrue(Long id);
 }

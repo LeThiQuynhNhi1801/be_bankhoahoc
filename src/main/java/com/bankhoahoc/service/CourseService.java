@@ -25,14 +25,14 @@ public class CourseService {
     @Autowired
     UserRepository userRepository;
 
-    public List<CourseDTO> getAllPublishedCourses() {
-        return courseRepository.findByIsPublishedTrue().stream()
+    public List<CourseDTO> getAllCourses() {
+        return courseRepository.findAll().stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
 
     public List<CourseDTO> searchCourses(String keyword) {
-        return courseRepository.searchPublishedCourses(keyword).stream()
+        return courseRepository.searchCourses(keyword).stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
@@ -49,11 +49,7 @@ public class CourseService {
         return convertToDTO(course);
     }
 
-    public CourseDTO getPublishedCourseById(Long id) {
-        Course course = courseRepository.findByIdAndIsPublishedTrue(id)
-                .orElseThrow(() -> new RuntimeException("Course not found or not published"));
-        return convertToDTO(course);
-    }
+    // Bỏ method getPublishedCourseById, dùng getCourseById cho tất cả
 
     @Transactional
     public CourseDTO createCourse(CourseCreateDTO dto, Long instructorId) {
@@ -66,7 +62,8 @@ public class CourseService {
         course.setLevel(dto.getLevel() != null ? dto.getLevel() : Course.Level.BEGINNER);
         course.setLanguage(dto.getLanguage() != null ? dto.getLanguage() : "Tiếng Việt");
         course.setEstimatedDuration(dto.getEstimatedDuration());
-        course.setIsPublished(false);
+        // Bỏ isPublished, tất cả courses đều public
+        course.setIsPublished(true);
 
         course.setCategory(categoryRepository.findById(dto.getCategoryId())
                 .orElseThrow(() -> new RuntimeException("Category not found")));
@@ -117,19 +114,7 @@ public class CourseService {
         courseRepository.delete(course);
     }
 
-    @Transactional
-    public CourseDTO publishCourse(Long id, Long instructorId) {
-        Course course = courseRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Course not found"));
-
-        if (!course.getInstructor().getId().equals(instructorId)) {
-            throw new RuntimeException("You don't have permission to publish this course");
-        }
-
-        course.setIsPublished(true);
-        Course updatedCourse = courseRepository.save(course);
-        return convertToDTO(updatedCourse);
-    }
+    // Bỏ method publishCourse vì tất cả courses đều public
 
     public List<CourseDTO> getCoursesByInstructor(Long instructorId) {
         return courseRepository.findByInstructorId(instructorId).stream()

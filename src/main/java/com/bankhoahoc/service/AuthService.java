@@ -54,13 +54,13 @@ public class AuthService {
 
     public JwtResponse login(LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUsernameOrEmail(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         
-        User user = userRepository.findByUsername(request.getUsernameOrEmail())
-                .orElseGet(() -> userRepository.findByEmail(request.getUsernameOrEmail())
+        User user = userRepository.findByUsername(request.getUsername())
+                .orElseGet(() -> userRepository.findByEmail(request.getUsername())
                         .orElseThrow(() -> new RuntimeException("User not found")));
 
         String jwt = jwtUtil.generateToken(user.getUsername(), user.getRole().name());

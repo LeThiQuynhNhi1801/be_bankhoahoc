@@ -28,35 +28,35 @@ public class CourseController {
     @Autowired
     CourseService courseService;
 
-    @Operation(summary = "Lấy danh sách khóa học đã publish", description = "Trả về tất cả khóa học đã được publish, không cần đăng nhập")
-    @GetMapping("/public")
-    public ResponseEntity<List<CourseDTO>> getAllPublishedCourses() {
-        return ResponseEntity.ok(courseService.getAllPublishedCourses());
+    @Operation(summary = "Lấy danh sách tất cả khóa học", description = "Trả về tất cả khóa học, không cần đăng nhập")
+    @GetMapping
+    public ResponseEntity<List<CourseDTO>> getAllCourses() {
+        return ResponseEntity.ok(courseService.getAllCourses());
     }
 
-    @Operation(summary = "Lấy chi tiết khóa học đã publish", description = "Trả về thông tin chi tiết của một khóa học đã publish")
+    @Operation(summary = "Lấy chi tiết khóa học", description = "Trả về thông tin chi tiết của một khóa học, không cần đăng nhập")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Tìm thấy khóa học"),
-            @ApiResponse(responseCode = "400", description = "Khóa học không tồn tại hoặc chưa publish")
+            @ApiResponse(responseCode = "400", description = "Khóa học không tồn tại")
     })
-    @GetMapping("/public/{id}")
-    public ResponseEntity<?> getPublishedCourseById(
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getCourseById(
             @Parameter(description = "ID của khóa học") @PathVariable Long id) {
         try {
-            return ResponseEntity.ok(courseService.getPublishedCourseById(id));
+            return ResponseEntity.ok(courseService.getCourseById(id));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
     @Operation(summary = "Tìm kiếm khóa học", description = "Tìm kiếm khóa học theo từ khóa trong title hoặc description")
-    @GetMapping("/public/search")
+    @GetMapping("/search")
     public ResponseEntity<List<CourseDTO>> searchCourses(
             @Parameter(description = "Từ khóa tìm kiếm") @RequestParam String keyword) {
         return ResponseEntity.ok(courseService.searchCourses(keyword));
     }
 
-    @GetMapping("/public/category/{categoryId}")
+    @GetMapping("/category/{categoryId}")
     public ResponseEntity<List<CourseDTO>> getCoursesByCategory(@PathVariable Long categoryId) {
         return ResponseEntity.ok(courseService.getCoursesByCategory(categoryId));
     }
@@ -70,14 +70,7 @@ public class CourseController {
         return ResponseEntity.ok(courseService.getCoursesByInstructor(userPrincipal.getId()));
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<?> getCourseById(@PathVariable Long id) {
-        try {
-            return ResponseEntity.ok(courseService.getCourseById(id));
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
-    }
+    // Method getCourseById đã được di chuyển lên trên
 
     @Operation(summary = "Tạo khóa học mới", 
                description = "Tạo một khóa học mới. Chỉ INSTRUCTOR và ADMIN mới có quyền",
@@ -125,18 +118,5 @@ public class CourseController {
         }
     }
 
-    @Operation(summary = "Publish khóa học", 
-               description = "Publish khóa học để hiển thị công khai",
-               security = @SecurityRequirement(name = "bearerAuth"))
-    @PutMapping("/{id}/publish")
-    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
-    public ResponseEntity<?> publishCourse(
-            @Parameter(description = "ID của khóa học") @PathVariable Long id,
-            @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        try {
-            return ResponseEntity.ok(courseService.publishCourse(id, userPrincipal.getId()));
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
-    }
+    // Bỏ endpoint publish vì tất cả courses đều public
 }
