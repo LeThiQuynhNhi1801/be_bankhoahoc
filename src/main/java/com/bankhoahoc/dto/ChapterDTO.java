@@ -16,6 +16,7 @@ public class ChapterDTO {
     private LocalDateTime updatedAt;
     private Long courseId;
     private String courseTitle;
+    private String documentUrl; // URL của tài liệu đính kèm
     private List<CourseContentDTO> contents;
     private Integer contentCount;
     private Integer totalDuration; // total duration of all contents in minutes

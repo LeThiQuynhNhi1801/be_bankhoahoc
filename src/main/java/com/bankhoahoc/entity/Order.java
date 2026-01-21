@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -15,6 +16,7 @@ import java.util.Set;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString(exclude = {"user", "items"})
 public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,7 +29,10 @@ public class Order {
     private BigDecimal totalAmount;
 
     @Column(name = "payment_method")
-    private String paymentMethod;
+    private String paymentMethod = "QR_CODE";
+
+    @Column(name = "qr_code_url", columnDefinition = "LONGTEXT")
+    private String qrCodeUrl;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

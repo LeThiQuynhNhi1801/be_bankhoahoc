@@ -13,6 +13,11 @@ public class OrderDTO {
     private String orderNumber;
     private BigDecimal totalAmount;
     private String paymentMethod;
+    private String qrCodeUrl;
+    private String qrCodeContent;
+    private String bankName;
+    private String accountNumber;
+    private String accountName;
     private Order.OrderStatus status;
     private LocalDateTime createdAt;
     private Long userId;

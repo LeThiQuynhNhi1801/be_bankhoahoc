@@ -10,5 +10,5 @@ public class OrderCreateDTO {
     @NotEmpty(message = "Course IDs are required")
     private List<Long> courseIds;
     
-    private String paymentMethod;
+    // Chỉ hỗ trợ QR code, không cần truyền paymentMethod
 }

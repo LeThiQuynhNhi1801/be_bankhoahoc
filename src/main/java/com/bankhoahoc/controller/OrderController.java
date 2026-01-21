@@ -6,6 +6,8 @@ import com.bankhoahoc.entity.Order;
 import com.bankhoahoc.security.UserPrincipal;
 import com.bankhoahoc.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -25,6 +27,8 @@ import java.util.List;
 @Tag(name = "Orders", description = "API quản lý đơn hàng")
 public class OrderController {
 
+    private static final Logger logger = LoggerFactory.getLogger(OrderController.class);
+
     @Autowired
     OrderService orderService;
 
@@ -41,24 +45,38 @@ public class OrderController {
     @PreAuthorize("hasAnyRole('STUDENT', 'INSTRUCTOR', 'ADMIN')")
     public ResponseEntity<?> getOrderById(@PathVariable Long id,
                                           @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        logger.info("Received request to get order by ID: {} from user: {}", id, 
+            userPrincipal != null ? userPrincipal.getId() : "anonymous");
         try {
             OrderDTO order = orderService.getOrderById(id);
+            logger.info("Retrieved order {} successfully", id);
+            
             // Check if user owns this order or is admin
             if (!order.getUserId().equals(userPrincipal.getId()) && !userPrincipal.getAuthorities().stream()
                     .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+                logger.warn("User {} attempted to access order {} which they don't own", 
+                    userPrincipal.getId(), id);
                 return ResponseEntity.status(403).body("Access denied");
             }
+            
+            logger.info("Returning order {} to user {}", id, userPrincipal.getId());
             return ResponseEntity.ok(order);
         } catch (RuntimeException e) {
+            logger.error("RuntimeException when getting order {}: {}", id, e.getMessage(), e);
             return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Unexpected exception when getting order {}: {}", id, e.getMessage(), e);
+            logger.error("Exception class: {}", e.getClass().getName());
+            logger.error("Stack trace:", e);
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
 
-    @Operation(summary = "Tạo đơn hàng mới", 
-               description = "Tạo đơn hàng với danh sách các khóa học",
+    @Operation(summary = "Tạo đơn hàng mới với QR code thanh toán", 
+               description = "Tạo đơn hàng với danh sách các khóa học. Hệ thống sẽ tự động tạo QR code thanh toán với số tiền tương ứng",
                security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Tạo đơn hàng thành công"),
+            @ApiResponse(responseCode = "200", description = "Tạo đơn hàng thành công. Response sẽ chứa QR code để thanh toán"),
             @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ hoặc khóa học không tồn tại")
     })
     @PostMapping

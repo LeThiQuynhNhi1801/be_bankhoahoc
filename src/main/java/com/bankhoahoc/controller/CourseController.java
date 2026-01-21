@@ -1,8 +1,11 @@
 package com.bankhoahoc.controller;
 
+import com.bankhoahoc.dto.ChapterCreateDTO;
+import com.bankhoahoc.dto.ChapterDTO;
 import com.bankhoahoc.dto.CourseCreateDTO;
 import com.bankhoahoc.dto.CourseDTO;
 import com.bankhoahoc.security.UserPrincipal;
+import com.bankhoahoc.service.ChapterService;
 import com.bankhoahoc.service.CourseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -27,6 +30,9 @@ public class CourseController {
 
     @Autowired
     CourseService courseService;
+
+    @Autowired
+    ChapterService chapterService;
 
     @Operation(summary = "Lấy danh sách tất cả khóa học", description = "Trả về tất cả khóa học, không cần đăng nhập")
     @GetMapping
@@ -119,4 +125,60 @@ public class CourseController {
     }
 
     // Bỏ endpoint publish vì tất cả courses đều public
+
+    @Operation(summary = "Thêm chương mới cho khóa học", 
+               description = "Thêm một chương mới vào khóa học đã tạo. Chỉ INSTRUCTOR sở hữu khóa học mới có quyền",
+               security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Tạo chương thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ hoặc không có quyền")
+    })
+    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    @PostMapping("/{courseId}/chapters")
+    public ResponseEntity<?> addChapterToCourse(
+            @Parameter(description = "ID của khóa học") @PathVariable Long courseId,
+            @Valid @RequestBody ChapterCreateDTO dto,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        try {
+            return ResponseEntity.ok(chapterService.createChapterForCourse(courseId, dto, userPrincipal.getId()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @Operation(summary = "Lấy danh sách chương của khóa học", 
+               description = "Lấy tất cả chương của một khóa học")
+    @GetMapping("/{courseId}/chapters")
+    public ResponseEntity<List<ChapterDTO>> getChaptersOfCourse(
+            @Parameter(description = "ID của khóa học") @PathVariable Long courseId) {
+        // Lấy user từ security context nếu có (optional)
+        org.springframework.security.core.Authentication auth = 
+            org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        Long studentId = null;
+        if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof UserPrincipal) {
+            studentId = ((UserPrincipal) auth.getPrincipal()).getId();
+        }
+        return ResponseEntity.ok(chapterService.getChaptersByCourse(courseId, studentId));
+    }
+
+    @Operation(summary = "Upload tài liệu cho chương", 
+               description = "Upload tài liệu đính kèm cho một chương. Chỉ INSTRUCTOR sở hữu khóa học mới có quyền",
+               security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Upload tài liệu thành công"),
+            @ApiResponse(responseCode = "400", description = "Lỗi upload hoặc không có quyền")
+    })
+    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
+    @PostMapping("/{courseId}/chapters/{chapterId}/documents")
+    public ResponseEntity<?> uploadChapterDocument(
+            @Parameter(description = "ID của khóa học") @PathVariable Long courseId,
+            @Parameter(description = "ID của chương") @PathVariable Long chapterId,
+            @Parameter(description = "File tài liệu cần upload") @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        try {
+            return ResponseEntity.ok(chapterService.uploadDocument(chapterId, file, userPrincipal.getId()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 }

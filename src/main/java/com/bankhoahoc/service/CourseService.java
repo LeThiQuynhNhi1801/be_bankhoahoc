@@ -6,6 +6,7 @@ import com.bankhoahoc.entity.Course;
 import com.bankhoahoc.repository.CategoryRepository;
 import com.bankhoahoc.repository.CourseRepository;
 import com.bankhoahoc.repository.UserRepository;
+import org.hibernate.Hibernate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,27 +26,60 @@ public class CourseService {
     @Autowired
     UserRepository userRepository;
 
+    @Transactional(readOnly = true)
     public List<CourseDTO> getAllCourses() {
-        return courseRepository.findAll().stream()
+        List<Course> courses = courseRepository.findAll();
+        
+        // Force initialize Category và Instructor trong transaction
+        for (Course course : courses) {
+            Hibernate.initialize(course.getCategory());
+            Hibernate.initialize(course.getInstructor());
+        }
+        
+        return courses.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<CourseDTO> searchCourses(String keyword) {
-        return courseRepository.searchCourses(keyword).stream()
+        List<Course> courses = courseRepository.searchCourses(keyword);
+        
+        // Force initialize Category và Instructor trong transaction
+        for (Course course : courses) {
+            Hibernate.initialize(course.getCategory());
+            Hibernate.initialize(course.getInstructor());
+        }
+        
+        return courses.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<CourseDTO> getCoursesByCategory(Long categoryId) {
-        return courseRepository.findByCategoryId(categoryId).stream()
+        List<Course> courses = courseRepository.findByCategoryId(categoryId);
+        
+        // Force initialize Category và Instructor trong transaction
+        for (Course course : courses) {
+            Hibernate.initialize(course.getCategory());
+            Hibernate.initialize(course.getInstructor());
+        }
+        
+        return courses.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public CourseDTO getCourseById(Long id) {
         Course course = courseRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Course not found"));
+        
+        // Force initialize Category và Instructor trong transaction
+        Hibernate.initialize(course.getCategory());
+        Hibernate.initialize(course.getInstructor());
+        
         return convertToDTO(course);
     }
 
@@ -116,8 +150,17 @@ public class CourseService {
 
     // Bỏ method publishCourse vì tất cả courses đều public
 
+    @Transactional(readOnly = true)
     public List<CourseDTO> getCoursesByInstructor(Long instructorId) {
-        return courseRepository.findByInstructorId(instructorId).stream()
+        List<Course> courses = courseRepository.findByInstructorId(instructorId);
+        
+        // Force initialize Category và Instructor trong transaction
+        for (Course course : courses) {
+            Hibernate.initialize(course.getCategory());
+            Hibernate.initialize(course.getInstructor());
+        }
+        
+        return courses.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }

@@ -10,9 +10,12 @@ import com.bankhoahoc.repository.ChapterRepository;
 import com.bankhoahoc.repository.CourseContentRepository;
 import com.bankhoahoc.repository.CourseRepository;
 import com.bankhoahoc.repository.EnrollmentRepository;
+import com.bankhoahoc.service.FileStorageService;
+import org.hibernate.Hibernate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -32,8 +35,25 @@ public class ChapterService {
     @Autowired
     EnrollmentRepository enrollmentRepository;
 
+    @Autowired
+    FileStorageService fileStorageService;
+
+    @Transactional(readOnly = true)
     public List<ChapterDTO> getChaptersByCourse(Long courseId, Long studentId) {
         List<Chapter> chapters = chapterRepository.findByCourseIdOrderByOrderIndexAsc(courseId);
+        
+        // Force initialize Course và Contents trong transaction
+        for (Chapter chapter : chapters) {
+            Hibernate.initialize(chapter.getCourse());
+            if (studentId != null) {
+                // Nếu đã enroll, load contents
+                boolean isEnrolled = enrollmentRepository.existsByStudentIdAndCourseId(studentId, courseId);
+                if (isEnrolled) {
+                    Hibernate.initialize(chapter.getContents());
+                }
+            }
+        }
+        
         boolean isEnrolled = studentId != null && 
             enrollmentRepository.existsByStudentIdAndCourseId(studentId, courseId);
         
@@ -50,29 +70,42 @@ public class ChapterService {
 
     // Bỏ getPublishedChaptersByCourse, dùng getChaptersByCourse cho tất cả
 
+    @Transactional(readOnly = true)
     public ChapterDTO getChapterById(Long id, Long studentId) {
         Chapter chapter = chapterRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Chapter not found"));
         
+        // Force initialize Course trong transaction
+        Hibernate.initialize(chapter.getCourse());
+        
         // Nếu có studentId, kiểm tra enrollment
         if (studentId != null) {
-            boolean isEnrolled = enrollmentRepository.existsByStudentIdAndCourseId(
-                    studentId, chapter.getCourse().getId());
-            // Nếu chưa enroll, không trả về contents
-            if (!isEnrolled) {
+            Long courseId = chapter.getCourse().getId();
+            boolean isEnrolled = enrollmentRepository.existsByStudentIdAndCourseId(studentId, courseId);
+            
+            // Nếu đã enroll, load contents
+            if (isEnrolled) {
+                Hibernate.initialize(chapter.getContents());
+                return convertToDTO(chapter);
+            } else {
+                // Chưa enroll, không trả về contents
                 return convertToDTOWithoutContents(chapter);
             }
         } else {
             // Không có studentId (chưa đăng nhập), không trả về contents
             return convertToDTOWithoutContents(chapter);
         }
-        
-        return convertToDTO(chapter);
     }
 
+    @Transactional(readOnly = true)
     public ChapterDTO getChapterByIdAndCourse(Long id, Long courseId) {
         Chapter chapter = chapterRepository.findByIdAndCourseId(id, courseId)
                 .orElseThrow(() -> new RuntimeException("Chapter not found"));
+        
+        // Force initialize Course và Contents trong transaction
+        Hibernate.initialize(chapter.getCourse());
+        Hibernate.initialize(chapter.getContents());
+        
         return convertToDTO(chapter);
     }
 
@@ -89,13 +122,28 @@ public class ChapterService {
         Chapter chapter = new Chapter();
         chapter.setTitle(dto.getTitle());
         chapter.setDescription(dto.getDescription());
-        chapter.setOrderIndex(dto.getOrderIndex());
+        
+        // Tự động tính orderIndex nếu không có
+        if (dto.getOrderIndex() == null) {
+            Long maxOrderIndex = chapterRepository.countByCourseId(dto.getCourseId());
+            chapter.setOrderIndex(maxOrderIndex.intValue() + 1);
+        } else {
+            chapter.setOrderIndex(dto.getOrderIndex());
+        }
+        
         // Bỏ isPublished, tất cả chapters đều public
         chapter.setIsPublished(true);
         chapter.setCourse(course);
 
         Chapter savedChapter = chapterRepository.save(chapter);
         return convertToDTO(savedChapter);
+    }
+
+    @Transactional
+    public ChapterDTO createChapterForCourse(Long courseId, ChapterCreateDTO dto, Long instructorId) {
+        // Set courseId từ path variable
+        dto.setCourseId(courseId);
+        return createChapter(dto, instructorId);
     }
 
     @Transactional
@@ -129,7 +177,38 @@ public class ChapterService {
             throw new RuntimeException("You don't have permission to delete this chapter");
         }
 
+        // Delete associated document if exists
+        if (chapter.getDocumentUrl() != null) {
+            fileStorageService.deleteFile(chapter.getDocumentUrl());
+        }
+
         chapterRepository.delete(chapter);
+    }
+
+    @Transactional
+    public ChapterDTO uploadDocument(Long chapterId, MultipartFile file, Long instructorId) {
+        Chapter chapter = chapterRepository.findById(chapterId)
+                .orElseThrow(() -> new RuntimeException("Chapter not found"));
+
+        // Force initialize Course để kiểm tra instructor
+        Hibernate.initialize(chapter.getCourse());
+
+        // Check if instructor owns the course
+        if (!chapter.getCourse().getInstructor().getId().equals(instructorId)) {
+            throw new RuntimeException("You don't have permission to upload document to this chapter");
+        }
+
+        // Delete old document if exists
+        if (chapter.getDocumentUrl() != null) {
+            fileStorageService.deleteFile(chapter.getDocumentUrl());
+        }
+
+        // Store new document
+        String filePath = fileStorageService.storeFile(file, "documents/chapters/" + chapterId);
+        chapter.setDocumentUrl(filePath);
+
+        Chapter updatedChapter = chapterRepository.save(chapter);
+        return convertToDTO(updatedChapter);
     }
 
     private ChapterDTO convertToDTO(Chapter chapter) {
@@ -146,6 +225,8 @@ public class ChapterService {
             dto.setCourseId(chapter.getCourse().getId());
             dto.setCourseTitle(chapter.getCourse().getTitle());
         }
+
+        dto.setDocumentUrl(chapter.getDocumentUrl());
 
         // Convert contents
         if (chapter.getContents() != null && !chapter.getContents().isEmpty()) {
@@ -204,6 +285,8 @@ public class ChapterService {
             dto.setCourseId(chapter.getCourse().getId());
             dto.setCourseTitle(chapter.getCourse().getTitle());
         }
+
+        dto.setDocumentUrl(chapter.getDocumentUrl());
 
         // Không trả về contents nếu chưa enroll
         dto.setContents(null);

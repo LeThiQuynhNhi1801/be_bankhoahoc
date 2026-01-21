@@ -1,7 +1,6 @@
 package com.bankhoahoc.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
@@ -11,11 +10,11 @@ public class ChapterCreateDTO {
 
     private String description;
     
-    @NotNull(message = "Order index is required")
+    // OrderIndex không bắt buộc, sẽ tự động tính nếu không có
     private Integer orderIndex;
     
     private Boolean isPublished = true;
     
-    @NotNull(message = "Course ID is required")
+    // CourseId không bắt buộc nếu dùng endpoint /courses/{courseId}/chapters
     private Long courseId;
 }
