@@ -7,6 +7,7 @@ import com.bankhoahoc.entity.User;
 import com.bankhoahoc.repository.CourseRepository;
 import com.bankhoahoc.repository.EnrollmentRepository;
 import com.bankhoahoc.repository.UserRepository;
+import org.hibernate.Hibernate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,14 +28,32 @@ public class EnrollmentService {
     @Autowired
     CourseRepository courseRepository;
 
+    @Transactional(readOnly = true)
     public List<EnrollmentDTO> getEnrollmentsByStudent(Long studentId) {
-        return enrollmentRepository.findByStudentId(studentId).stream()
+        List<Enrollment> enrollments = enrollmentRepository.findByStudentId(studentId);
+        
+        // Force initialize student và course trong transaction
+        for (Enrollment enrollment : enrollments) {
+            Hibernate.initialize(enrollment.getStudent());
+            Hibernate.initialize(enrollment.getCourse());
+        }
+        
+        return enrollments.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<EnrollmentDTO> getEnrollmentsByCourse(Long courseId) {
-        return enrollmentRepository.findByCourseId(courseId).stream()
+        List<Enrollment> enrollments = enrollmentRepository.findByCourseId(courseId);
+        
+        // Force initialize student và course trong transaction
+        for (Enrollment enrollment : enrollments) {
+            Hibernate.initialize(enrollment.getStudent());
+            Hibernate.initialize(enrollment.getCourse());
+        }
+        
+        return enrollments.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
@@ -80,6 +99,7 @@ public class EnrollmentService {
         return convertToDTO(updatedEnrollment);
     }
 
+    @Transactional(readOnly = true)
     public Boolean isEnrolled(Long studentId, Long courseId) {
         return enrollmentRepository.existsByStudentIdAndCourseId(studentId, courseId);
     }

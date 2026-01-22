@@ -37,6 +37,9 @@ public class Chapter {
     @Column(name = "document_url")
     private String documentUrl; // URL của tài liệu đính kèm
 
+    @Column(name = "video_url", columnDefinition = "TEXT")
+    private String videoUrl; // URL của video từ Bunny Stream
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

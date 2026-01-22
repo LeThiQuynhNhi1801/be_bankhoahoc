@@ -189,6 +189,8 @@ public class CourseService {
         }
 
         if (course.getInstructor() != null) {
+            // Force initialize instructor nếu chưa được load
+            Hibernate.initialize(course.getInstructor());
             dto.setInstructorId(course.getInstructor().getId());
             dto.setInstructorName(course.getInstructor().getFullName() != null ?
                     course.getInstructor().getFullName() : course.getInstructor().getUsername());

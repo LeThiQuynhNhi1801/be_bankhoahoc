@@ -160,25 +160,4 @@ public class CourseController {
         }
         return ResponseEntity.ok(chapterService.getChaptersByCourse(courseId, studentId));
     }
-
-    @Operation(summary = "Upload tài liệu cho chương", 
-               description = "Upload tài liệu đính kèm cho một chương. Chỉ INSTRUCTOR sở hữu khóa học mới có quyền",
-               security = @SecurityRequirement(name = "bearerAuth"))
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Upload tài liệu thành công"),
-            @ApiResponse(responseCode = "400", description = "Lỗi upload hoặc không có quyền")
-    })
-    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
-    @PostMapping("/{courseId}/chapters/{chapterId}/documents")
-    public ResponseEntity<?> uploadChapterDocument(
-            @Parameter(description = "ID của khóa học") @PathVariable Long courseId,
-            @Parameter(description = "ID của chương") @PathVariable Long chapterId,
-            @Parameter(description = "File tài liệu cần upload") @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
-            @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        try {
-            return ResponseEntity.ok(chapterService.uploadDocument(chapterId, file, userPrincipal.getId()));
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
-    }
 }
