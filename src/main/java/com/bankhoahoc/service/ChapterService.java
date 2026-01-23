@@ -10,12 +10,10 @@ import com.bankhoahoc.repository.ChapterRepository;
 import com.bankhoahoc.repository.CourseContentRepository;
 import com.bankhoahoc.repository.CourseRepository;
 import com.bankhoahoc.repository.EnrollmentRepository;
-import com.bankhoahoc.service.FileStorageService;
 import org.hibernate.Hibernate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -34,12 +32,6 @@ public class ChapterService {
 
     @Autowired
     EnrollmentRepository enrollmentRepository;
-
-    @Autowired
-    FileStorageService fileStorageService;
-
-    @Autowired
-    BunnyStreamService bunnyStreamService;
 
     @Transactional(readOnly = true)
     public List<ChapterDTO> getChaptersByCourse(Long courseId, Long studentId) {
@@ -189,155 +181,7 @@ public class ChapterService {
             throw new RuntimeException("You don't have permission to delete this chapter");
         }
 
-        // Delete associated document if exists
-        if (chapter.getDocumentUrl() != null) {
-            fileStorageService.deleteFile(chapter.getDocumentUrl());
-        }
-
         chapterRepository.delete(chapter);
-    }
-
-    @Transactional
-    public ChapterDTO uploadDocument(Long chapterId, MultipartFile file, Long instructorId) {
-        Chapter chapter = chapterRepository.findById(chapterId)
-                .orElseThrow(() -> new RuntimeException("Chapter not found"));
-
-        // Force initialize Course để kiểm tra instructor
-        Hibernate.initialize(chapter.getCourse());
-
-        // Check if instructor owns the course
-        if (!chapter.getCourse().getInstructor().getId().equals(instructorId)) {
-            throw new RuntimeException("You don't have permission to upload document to this chapter");
-        }
-
-        // Validate file type - CHỈ cho phép tài liệu, KHÔNG cho phép video
-        String contentType = file.getContentType();
-        String fileName = file.getOriginalFilename();
-        
-        // Danh sách các loại file video không được phép
-        String[] videoMimeTypes = {
-            "video/mp4", "video/avi", "video/quicktime", "video/x-msvideo",
-            "video/x-ms-wmv", "video/webm", "video/ogg", "video/mpeg"
-        };
-        
-        // Danh sách các extension video không được phép
-        String[] videoExtensions = {".mp4", ".avi", ".mov", ".wmv", ".webm", ".ogg", ".mpeg", ".mpg", ".mkv", ".flv"};
-        
-        // Kiểm tra MIME type
-        if (contentType != null) {
-            for (String videoType : videoMimeTypes) {
-                if (contentType.toLowerCase().contains(videoType)) {
-                    throw new RuntimeException(
-                        "Video files are not allowed here. " +
-                        "Please use POST /api/course-contents/{contentId}/video to upload videos to Bunny Stream. " +
-                        "This endpoint is only for documents (PDF, DOC, DOCX, TXT, etc.)"
-                    );
-                }
-            }
-        }
-        
-        // Kiểm tra file extension
-        if (fileName != null) {
-            String lowerFileName = fileName.toLowerCase();
-            for (String ext : videoExtensions) {
-                if (lowerFileName.endsWith(ext)) {
-                    throw new RuntimeException(
-                        "Video files are not allowed here. " +
-                        "Please use POST /api/course-contents/{contentId}/video to upload videos to Bunny Stream. " +
-                        "This endpoint is only for documents (PDF, DOC, DOCX, TXT, etc.)"
-                    );
-                }
-            }
-        }
-
-        // Delete old document if exists
-        if (chapter.getDocumentUrl() != null) {
-            fileStorageService.deleteFile(chapter.getDocumentUrl());
-        }
-
-        // Store new document (CHỈ tài liệu, không phải video)
-        String filePath = fileStorageService.storeFile(file, "documents/chapters/" + chapterId);
-        chapter.setDocumentUrl(filePath);
-
-        Chapter updatedChapter = chapterRepository.save(chapter);
-        return convertToDTO(updatedChapter);
-    }
-
-    @Transactional
-    public ChapterDTO uploadVideo(Long chapterId, MultipartFile videoFile, String title, Long instructorId) {
-        Chapter chapter = chapterRepository.findById(chapterId)
-                .orElseThrow(() -> new RuntimeException("Chapter not found"));
-
-        // Force initialize Course để kiểm tra instructor
-        Hibernate.initialize(chapter.getCourse());
-
-        // Check if instructor owns the course
-        if (!chapter.getCourse().getInstructor().getId().equals(instructorId)) {
-            throw new RuntimeException("You don't have permission to upload video to this chapter");
-        }
-
-        // Validate file
-        if (videoFile == null || videoFile.isEmpty()) {
-            throw new RuntimeException("Video file is required");
-        }
-
-        // Validate file type - CHỈ cho phép video
-        String contentType = videoFile.getContentType();
-        String fileName = videoFile.getOriginalFilename();
-        
-        // Danh sách các loại file video được phép
-        String[] allowedVideoMimeTypes = {
-            "video/mp4", "video/avi", "video/quicktime", "video/x-msvideo",
-            "video/x-ms-wmv", "video/webm", "video/ogg", "video/mpeg"
-        };
-        
-        boolean isVideo = false;
-        if (contentType != null) {
-            for (String videoType : allowedVideoMimeTypes) {
-                if (contentType.toLowerCase().contains(videoType)) {
-                    isVideo = true;
-                    break;
-                }
-            }
-        }
-        
-        // Kiểm tra extension nếu MIME type không rõ
-        if (!isVideo && fileName != null) {
-            String lowerFileName = fileName.toLowerCase();
-            String[] videoExtensions = {".mp4", ".avi", ".mov", ".wmv", ".webm", ".ogg", ".mpeg", ".mpg", ".mkv", ".flv"};
-            for (String ext : videoExtensions) {
-                if (lowerFileName.endsWith(ext)) {
-                    isVideo = true;
-                    break;
-                }
-            }
-        }
-        
-        if (!isVideo) {
-            throw new RuntimeException("File must be a video. Allowed formats: MP4, AVI, MOV, WMV, WEBM, OGG, MPEG, MKV, FLV");
-        }
-
-        // Check if Bunny Stream is enabled
-        if (!bunnyStreamService.isEnabled()) {
-            throw new RuntimeException("Bunny Stream is not enabled. Please configure it in application.properties");
-        }
-
-        try {
-            // Upload video to Bunny Stream (KHÔNG lưu vào project)
-            // Sử dụng title từ request hoặc title của chapter
-            String videoTitle = title != null && !title.isEmpty() ? title : chapter.getTitle();
-            String videoUrl = bunnyStreamService.uploadVideo(videoFile, videoTitle);
-            
-            // Lưu video URL trực tiếp vào Chapter (KHÔNG cần tạo CourseContent)
-            chapter.setVideoUrl(videoUrl);
-            
-            Chapter updatedChapter = chapterRepository.save(chapter);
-            
-            // Trả về ChapterDTO với videoUrl
-            return convertToDTO(updatedChapter);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to upload video: " + e.getMessage());
-        }
     }
 
     private ChapterDTO convertToDTO(Chapter chapter) {
@@ -357,8 +201,6 @@ public class ChapterService {
             dto.setCourseTitle(chapter.getCourse().getTitle());
         }
 
-        dto.setDocumentUrl(chapter.getDocumentUrl());
-        dto.setVideoUrl(chapter.getVideoUrl());
 
         // Convert contents
         if (chapter.getContents() != null && !chapter.getContents().isEmpty()) {
@@ -391,7 +233,7 @@ public class ChapterService {
         dto.setId(content.getId());
         dto.setTitle(content.getTitle());
         dto.setDescription(content.getDescription());
-        dto.setVideoUrl(content.getVideoUrl());
+        dto.setFileUrl(content.getFileUrl());
         dto.setDuration(content.getDuration());
         dto.setOrderIndex(content.getOrderIndex());
         dto.setIsPreview(content.getIsPreview());
@@ -420,9 +262,6 @@ public class ChapterService {
             dto.setCourseTitle(chapter.getCourse().getTitle());
         }
 
-        dto.setDocumentUrl(chapter.getDocumentUrl());
-        dto.setVideoUrl(chapter.getVideoUrl());
-
         // Không trả về contents nếu chưa enroll
         dto.setContents(null);
         dto.setContentCount(0);
@@ -430,4 +269,5 @@ public class ChapterService {
 
         return dto;
     }
+
 }

@@ -26,8 +26,8 @@ public class CourseContent {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "video_url")
-    private String videoUrl;
+    @Column(name = "file_url")
+    private String fileUrl;
 
     @Column(name = "duration")
     private Integer duration; // in minutes

@@ -72,21 +72,21 @@ public class CourseContentController {
         }
     }
 
-    @Operation(summary = "Upload video cho nội dung", 
-               description = "Upload video lên Bunny Stream và lưu URL vào nội dung. Chỉ INSTRUCTOR sở hữu khóa học mới có quyền",
+    @Operation(summary = "Upload file cho nội dung", 
+               description = "Upload file (video hoặc tài liệu) cho nội dung. Tự động phát hiện loại file: video → Bunny Stream, tài liệu → Bunny Storage. Chỉ INSTRUCTOR sở hữu khóa học mới có quyền",
                security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Upload video thành công"),
+            @ApiResponse(responseCode = "200", description = "Upload file thành công"),
             @ApiResponse(responseCode = "400", description = "Lỗi upload hoặc không có quyền")
     })
     @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
-    @PostMapping("/{contentId}/video")
-    public ResponseEntity<?> uploadVideo(
+    @PostMapping("/{contentId}/file")
+    public ResponseEntity<?> uploadFile(
             @Parameter(description = "ID của nội dung") @PathVariable Long contentId,
-            @Parameter(description = "File video cần upload") @RequestParam("video") MultipartFile videoFile,
+            @Parameter(description = "File cần upload (video hoặc tài liệu)") @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
         try {
-            return ResponseEntity.ok(courseContentService.uploadVideo(contentId, videoFile, userPrincipal.getId()));
+            return ResponseEntity.ok(courseContentService.uploadFile(contentId, file, userPrincipal.getId()));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }

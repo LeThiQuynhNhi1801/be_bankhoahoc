@@ -16,7 +16,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -118,44 +117,4 @@ public class ChapterController {
         }
     }
 
-    @Operation(summary = "Upload tài liệu cho chương", 
-               description = "Upload tài liệu đính kèm cho một chương. Chỉ INSTRUCTOR sở hữu khóa học mới có quyền",
-               security = @SecurityRequirement(name = "bearerAuth"))
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Upload tài liệu thành công"),
-            @ApiResponse(responseCode = "400", description = "Lỗi upload hoặc không có quyền")
-    })
-    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
-    @PostMapping("/{chapterId}/documents")
-    public ResponseEntity<?> uploadDocument(
-            @Parameter(description = "ID của chương") @PathVariable Long chapterId,
-            @Parameter(description = "File tài liệu cần upload") @RequestParam("file") MultipartFile file,
-            @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        try {
-            return ResponseEntity.ok(chapterService.uploadDocument(chapterId, file, userPrincipal.getId()));
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        }
-    }
-
-    @Operation(summary = "Upload video cho chương", 
-               description = "Upload video lên Bunny Stream cho một chương. Video được lưu trực tiếp vào chapter, không cần tạo CourseContent. Chỉ INSTRUCTOR sở hữu khóa học mới có quyền",
-               security = @SecurityRequirement(name = "bearerAuth"))
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Upload video thành công"),
-            @ApiResponse(responseCode = "400", description = "Lỗi upload hoặc không có quyền")
-    })
-    @PreAuthorize("hasAnyRole('INSTRUCTOR', 'ADMIN')")
-    @PostMapping("/{chapterId}/video")
-    public ResponseEntity<?> uploadVideo(
-            @Parameter(description = "ID của chương") @PathVariable Long chapterId,
-            @Parameter(description = "File video cần upload") @RequestParam("video") MultipartFile videoFile,
-            @Parameter(description = "Tiêu đề cho video (tùy chọn, dùng để đặt tên trên Bunny Stream)") @RequestParam(required = false) String title,
-            @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        try {
-            return ResponseEntity.ok(chapterService.uploadVideo(chapterId, videoFile, title, userPrincipal.getId()));
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        }
-    }
 }

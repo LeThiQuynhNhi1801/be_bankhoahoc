@@ -26,6 +26,9 @@ public class CourseContentService {
     @Autowired
     BunnyStreamService bunnyStreamService;
 
+    @Autowired
+    BunnyStorageService bunnyStorageService;
+
     @Transactional(readOnly = true)
     public List<CourseContentDTO> getContentsByChapter(Long chapterId) {
         List<CourseContent> contents = courseContentRepository.findByChapterIdOrderByOrderIndexAsc(chapterId);
@@ -75,7 +78,7 @@ public class CourseContentService {
     }
 
     @Transactional
-    public CourseContentDTO uploadVideo(Long contentId, MultipartFile videoFile, Long instructorId) {
+    public CourseContentDTO uploadFile(Long contentId, MultipartFile file, Long instructorId) {
         CourseContent content = courseContentRepository.findById(contentId)
                 .orElseThrow(() -> new RuntimeException("Course content not found"));
 
@@ -85,39 +88,80 @@ public class CourseContentService {
 
         // Check if instructor owns the course
         if (!content.getChapter().getCourse().getInstructor().getId().equals(instructorId)) {
-            throw new RuntimeException("You don't have permission to upload video to this content");
+            throw new RuntimeException("You don't have permission to upload file to this content");
         }
 
         // Validate file
-        if (videoFile == null || videoFile.isEmpty()) {
-            throw new RuntimeException("Video file is required");
-        }
-
-        // Check if Bunny Stream is enabled
-        if (!bunnyStreamService.isEnabled()) {
-            throw new RuntimeException("Bunny Stream is not enabled. Please configure it in application.properties");
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("File is required");
         }
 
         try {
-            logger.info("Starting video upload for content ID: {}, Title: {}, File size: {} bytes", 
-                    contentId, content.getTitle(), videoFile.getSize());
+            logger.info("Starting file upload for content ID: {}, Title: {}, File size: {} bytes, File name: {}", 
+                    contentId, content.getTitle(), file.getSize(), file.getOriginalFilename());
             
-            // Upload video to Bunny Stream (KHÔNG lưu vào project)
-            String videoUrl = bunnyStreamService.uploadVideo(videoFile, content.getTitle());
+            String fileUrl;
+            boolean isVideo = isVideoFile(file);
             
-            logger.info("Video uploaded to Bunny Stream successfully. URL: {}", videoUrl);
+            if (isVideo) {
+                // Upload video to Bunny Stream
+                if (!bunnyStreamService.isEnabled()) {
+                    throw new RuntimeException("Bunny Stream is not enabled. Please configure it in application.properties");
+                }
+                
+                logger.info("Detected video file, uploading to Bunny Stream...");
+                fileUrl = bunnyStreamService.uploadVideo(file, content.getTitle());
+                logger.info("Video uploaded to Bunny Stream successfully. URL: {}", fileUrl);
+            } else {
+                // Upload document to Bunny Storage
+                logger.info("Detected document file, uploading to Bunny Storage...");
+                String folder = "documents/course-contents/" + contentId;
+                fileUrl = bunnyStorageService.uploadFile(file, folder);
+                logger.info("Document uploaded to Bunny Storage successfully. URL: {}", fileUrl);
+            }
             
-            // Update content with video URL from Bunny Stream (KHÔNG lưu file vào project)
-            content.setVideoUrl(videoUrl);
+            // Update content with file URL (KHÔNG lưu file vào project)
+            content.setFileUrl(fileUrl);
             
             CourseContent updatedContent = courseContentRepository.save(content);
-            logger.info("Content updated with Bunny Stream video URL. Content ID: {}", contentId);
+            logger.info("Content updated with file URL. Content ID: {}, URL: {}", contentId, fileUrl);
             
             return convertToDTO(updatedContent);
         } catch (Exception e) {
-            logger.error("Failed to upload video to Bunny Stream: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to upload video: " + e.getMessage());
+            logger.error("Failed to upload file: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to upload file: " + e.getMessage());
         }
+    }
+
+    private boolean isVideoFile(MultipartFile file) {
+        String contentType = file.getContentType();
+        String fileName = file.getOriginalFilename();
+        
+        // Check MIME type
+        if (contentType != null) {
+            String[] videoMimeTypes = {
+                "video/mp4", "video/avi", "video/quicktime", "video/x-msvideo",
+                "video/x-ms-wmv", "video/webm", "video/ogg", "video/mpeg"
+            };
+            for (String videoType : videoMimeTypes) {
+                if (contentType.toLowerCase().contains(videoType)) {
+                    return true;
+                }
+            }
+        }
+        
+        // Check file extension
+        if (fileName != null) {
+            String lowerFileName = fileName.toLowerCase();
+            String[] videoExtensions = {".mp4", ".avi", ".mov", ".wmv", ".webm", ".ogg", ".mpeg", ".mpg", ".mkv", ".flv"};
+            for (String ext : videoExtensions) {
+                if (lowerFileName.endsWith(ext)) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
     }
 
     @Transactional
@@ -166,15 +210,25 @@ public class CourseContentService {
             throw new RuntimeException("You don't have permission to delete this content");
         }
 
-        // Delete video from Bunny Stream if exists
-        if (content.getVideoUrl() != null && bunnyStreamService.isEnabled()) {
+        // Delete file from Bunny Stream or Storage if exists
+        if (content.getFileUrl() != null) {
             try {
-                String videoId = bunnyStreamService.extractVideoId(content.getVideoUrl());
-                if (videoId != null) {
-                    bunnyStreamService.deleteVideo(videoId);
+                if (isBunnyStreamUrl(content.getFileUrl())) {
+                    // Delete video from Bunny Stream
+                    if (bunnyStreamService.isEnabled()) {
+                        String videoId = bunnyStreamService.extractVideoId(content.getFileUrl());
+                        if (videoId != null) {
+                            bunnyStreamService.deleteVideo(videoId);
+                            logger.info("Video deleted from Bunny Stream. Video ID: {}", videoId);
+                        }
+                    }
+                } else if (isBunnyStorageUrl(content.getFileUrl())) {
+                    // Note: Bunny Storage doesn't have delete API in current implementation
+                    // Files on Bunny Storage will remain, but that's acceptable
+                    logger.info("Document URL is from Bunny Storage. File will remain on storage.");
                 }
             } catch (Exception e) {
-                logger.warn("Failed to delete video from Bunny Stream: {}", e.getMessage());
+                logger.warn("Failed to delete file from Bunny: {}", e.getMessage());
             }
         }
 
@@ -186,7 +240,7 @@ public class CourseContentService {
         dto.setId(content.getId());
         dto.setTitle(content.getTitle());
         dto.setDescription(content.getDescription());
-        dto.setVideoUrl(content.getVideoUrl());
+        dto.setFileUrl(content.getFileUrl());
         dto.setDuration(content.getDuration());
         dto.setOrderIndex(content.getOrderIndex());
         dto.setIsPreview(content.getIsPreview());
@@ -198,6 +252,20 @@ public class CourseContentService {
         }
         
         return dto;
+    }
+
+    private boolean isBunnyStreamUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return false;
+        }
+        return url.contains("mediadelivery.net") || url.contains("bunnycdn.com");
+    }
+
+    private boolean isBunnyStorageUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return false;
+        }
+        return url.startsWith("https://") && url.contains(".b-cdn.net");
     }
 
     private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(CourseContentService.class);
