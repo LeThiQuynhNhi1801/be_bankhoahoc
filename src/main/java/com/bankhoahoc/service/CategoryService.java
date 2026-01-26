@@ -3,11 +3,13 @@ package com.bankhoahoc.service;
 import com.bankhoahoc.dto.CategoryDTO;
 import com.bankhoahoc.entity.Category;
 import com.bankhoahoc.repository.CategoryRepository;
+import com.bankhoahoc.repository.CourseRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -15,6 +17,9 @@ public class CategoryService {
 
     @Autowired
     CategoryRepository categoryRepository;
+
+    @Autowired
+    CourseRepository courseRepository;
 
     public List<CategoryDTO> getAllCategories() {
         return categoryRepository.findAll().stream()
@@ -24,15 +29,20 @@ public class CategoryService {
 
     public CategoryDTO getCategoryById(Long id) {
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy danh mục với ID: " + id));
         return convertToDTO(category);
     }
 
     @Transactional
     public CategoryDTO createCategory(CategoryDTO dto) {
+        Optional<Category> existingCategory = categoryRepository.findByNameIgnoreCase(dto.getName().trim());
+        if (existingCategory.isPresent()) {
+            throw new RuntimeException("Danh mục với tên '" + dto.getName() + "' đã tồn tại");
+        }
+
         Category category = new Category();
-        category.setName(dto.getName());
-        category.setDescription(dto.getDescription());
+        category.setName(dto.getName().trim());
+        category.setDescription(dto.getDescription() != null ? dto.getDescription().trim() : null);
         category.setImage(dto.getImage());
 
         Category savedCategory = categoryRepository.save(category);
@@ -42,10 +52,15 @@ public class CategoryService {
     @Transactional
     public CategoryDTO updateCategory(Long id, CategoryDTO dto) {
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy danh mục với ID: " + id));
 
-        category.setName(dto.getName());
-        category.setDescription(dto.getDescription());
+        Optional<Category> existingCategory = categoryRepository.findByNameIgnoreCase(dto.getName().trim());
+        if (existingCategory.isPresent() && !existingCategory.get().getId().equals(id)) {
+            throw new RuntimeException("Danh mục với tên '" + dto.getName() + "' đã tồn tại");
+        }
+
+        category.setName(dto.getName().trim());
+        category.setDescription(dto.getDescription() != null ? dto.getDescription().trim() : null);
         category.setImage(dto.getImage());
 
         Category updatedCategory = categoryRepository.save(category);
@@ -54,9 +69,14 @@ public class CategoryService {
 
     @Transactional
     public void deleteCategory(Long id) {
-        if (!categoryRepository.existsById(id)) {
-            throw new RuntimeException("Category not found");
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy danh mục với ID: " + id));
+
+        long courseCount = courseRepository.findByCategoryId(id).size();
+        if (courseCount > 0) {
+            throw new RuntimeException("Không thể xóa danh mục này vì có " + courseCount + " khóa học đang sử dụng. Vui lòng xóa hoặc chuyển các khóa học trước.");
         }
+
         categoryRepository.deleteById(id);
     }
 
