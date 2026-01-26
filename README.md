@@ -4,7 +4,7 @@ Backend API cho hệ thống bán khóa học được xây dựng bằng Java S
 
 ## Công nghệ sử dụng
 
-- **Java 17**
+- **Java 21**
 - **Spring Boot 3.2.0**
 - **Spring Security** - Xác thực và phân quyền
 - **JWT** - Token-based authentication
